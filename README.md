@@ -17,6 +17,7 @@ It also adds a right-click context menu to the resource readout so that you can 
 - [x] Make `.csproj` file work on all platforms
 - [x] Add option to remember resource readout expansion state between game loads.
 - [x] Add mod settings dialog.
+- [ ] Add Version 1.7 support (including targeting .NET 10)
 - [ ] Upload to Steam workshop
 - [ ] Upload binary .zip releases
 - [ ] Github CI/CD integration to auto upload to workshop

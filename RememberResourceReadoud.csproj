@@ -1,28 +1,67 @@
 <!-- source: modified from https://github.com/Rimworld-Mods/Template/blob/master/.vscode/mod.csproj -->
 <Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+	One target framework per supported RimWorld version:
+	  net472    -> RimWorld 1.6 (Unity / Mono)    -> 1.6/Assemblies
+	  net10.0   -> RimWorld 1.7 (Waylith CoreCLR) -> 1.7/Assemblies
+
+	`dotnet build` builds both. Build just one with `dotnet build -f net472` or `-f net10.0`.
+	In Visual Studio, the framework dropdown in the editor's navigation bar switches which
+	version IntelliSense is checking against.
+	-->
 	<PropertyGroup>
-		<OutputType>Library</OutputType>
-		<TargetFramework>net472</TargetFramework>
+		<TargetFrameworks>net472;net10.0</TargetFrameworks>
 		<LangVersion>latest</LangVersion>
 		<PlatformTarget>x64</PlatformTarget>
 
 		<RootNamespace>RememberResourceReadout</RootNamespace>
 		<AssemblyName>RimWorld.RememberResourceReadout</AssemblyName>
-		<OutputPath>1.6/Assemblies</OutputPath>
 		<VersionPrefix>0.0.1.0</VersionPrefix>
-		
-		<Optimize>true</Optimize>
-		<DebugType>portable</DebugType>
-		<DebugSymbols>true</DebugSymbols>
+
 		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<!-- RimWorld loads every file in Assemblies/; only the DLL and PDB belong there. -->
+		<GenerateDependencyFile>false</GenerateDependencyFile>
 	</PropertyGroup>
 
- 	<ItemGroup>
-		<!-- 
+	<PropertyGroup Condition="'$(TargetFramework)' == 'net472'">
+		<RimWorldVersion>1.6</RimWorldVersion>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+		<RimWorldVersion>1.7</RimWorldVersion>
+		<!--
+		There is no Krafs.Rimworld.Ref package for 1.7 yet, so compile against the game's own
+		assemblies. This repo normally lives in RimWorld/Mods/, making the install two levels up;
+		override with -p:RimWorld17Dir=... if it lives elsewhere.
+		-->
+		<RimWorld17Dir Condition="'$(RimWorld17Dir)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '..', '..'))</RimWorld17Dir>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<OutputPath>$(RimWorldVersion)/Assemblies/</OutputPath>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Lib.Harmony.Ref" Version="2.4.2" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+		<!--
 		Reference assemblies for RimWorld, allowing IDE support even if RimWorld is not installed
 		or the repo is opened outside of the Rimworld Mod's directory.
 		-->
-		<PackageReference Include="Krafs.Rimworld.Ref" Version="*" />
-		<PackageReference Include="Lib.Harmony.Ref" Version="2.4.2" />
+		<PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.4871" />
 	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+		<Reference Include="$(RimWorld17Dir)Assembly-CSharp.dll" Private="false" />
+		<Reference Include="$(RimWorld17Dir)UnityStubs.dll" Private="false" />
+	</ItemGroup>
+
+	<Target Name="CheckRimWorld17Dir" BeforeTargets="ResolveAssemblyReferences" Condition="'$(TargetFramework)' == 'net10.0'">
+		<Error Condition="!Exists('$(RimWorld17Dir)Assembly-CSharp.dll')"
+		       Text="RimWorld 1.7 assemblies not found in '$(RimWorld17Dir)'. Pass -p:RimWorld17Dir=&lt;RimWorld 1.7 install folder&gt;, or build only 1.6 with -f net472." />
+	</Target>
+
 </Project>

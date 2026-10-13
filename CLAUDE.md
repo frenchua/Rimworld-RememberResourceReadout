@@ -16,9 +16,12 @@ This mod previously had a much more narrow focus of simply auto-expanding the re
 dotnet build
 ```
 
-This compiles `Source/**/*.cs` against `net472` and drops the DLL/PDB into `1.6/Assemblies/` (see `OutputPath` in `ExpandResourceReadoud.csproj`), which is where RimWorld's mod loader expects them. There is no separate install/copy step — building in place is the deployment.
+The project multi-targets one framework per RimWorld version, and each build drops its DLL/PDB into the version folder RimWorld's mod loader picks automatically:
 
-References are pulled via NuGet: `Krafs.Rimworld.Ref` (RimWorld's own assemblies, resolved from the local Steam RimWorld install) and `Lib.Harmony.Ref` (Harmony, pinned to 2.4.2). There is no test suite — verification is done by loading the mod in RimWorld itself.
+- `net472` → RimWorld 1.6 (Unity/Mono) → `1.6/Assemblies/`. References come from NuGet (`Krafs.Rimworld.Ref`, pinned).
+- `net10.0` → RimWorld 1.7 (custom "Waylith" CoreCLR, .NET 10) → `1.7/Assemblies/`. No 1.7 `Krafs.Rimworld.Ref` exists yet, so this references `Assembly-CSharp.dll` and `UnityStubs.dll` straight from the game install (defaults to two folders up from the repo; override with `-p:RimWorld17Dir=...`).
+
+Build a single version with `dotnet build -f net472` or `-f net10.0`. Both share `Lib.Harmony.Ref` 2.4.2. There is no separate install/copy step — building in place is the deployment. There is no test suite — verification is done by loading the mod in RimWorld itself.
 
 ## Architecture
 
