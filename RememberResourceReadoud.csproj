@@ -31,11 +31,17 @@
 	<PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
 		<RimWorldVersion>1.7</RimWorldVersion>
 		<!--
-		There is no Krafs.Rimworld.Ref package for 1.7 yet, so compile against the game's own
-		assemblies. This repo normally lives in RimWorld/Mods/, making the install two levels up;
-		override with -p:RimWorld17Dir=... if it lives elsewhere.
+		Preferred: compile against the game's own assemblies. This repo normally lives in
+		RimWorld/Mods/, making the install two levels up; override with -p:RimWorld17Dir=...
+		if it lives elsewhere.
 		-->
 		<RimWorld17Dir Condition="'$(RimWorld17Dir)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '..', '..'))</RimWorld17Dir>
+		<!--
+		Fallback for CI and machines without 1.7 installed: the only 1.7 Krafs.Rimworld.Ref
+		packages are prereleases, so it is pinned and used only when the game's assemblies
+		are not on disk.
+		-->
+		<UseRimWorld17RefPackage Condition="!Exists('$(RimWorld17Dir)Assembly-CSharp.dll')">true</UseRimWorld17RefPackage>
 	</PropertyGroup>
 
 	<PropertyGroup>
@@ -52,16 +58,22 @@
 		or the repo is opened outside of the Rimworld Mod's directory.
 		-->
 		<PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.4871" />
+		<!-- Linux runners have no .NET Framework targeting pack; a no-op on Windows. -->
+		<PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
 	</ItemGroup>
 
-	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0' and '$(UseRimWorld17RefPackage)' != 'true'">
 		<Reference Include="$(RimWorld17Dir)Assembly-CSharp.dll" Private="false" />
 		<Reference Include="$(RimWorld17Dir)UnityStubs.dll" Private="false" />
 	</ItemGroup>
 
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0' and '$(UseRimWorld17RefPackage)' == 'true'">
+		<PackageReference Include="Krafs.Rimworld.Ref" Version="1.7.4998-unstable" />
+	</ItemGroup>
+
 	<Target Name="CheckRimWorld17Dir" BeforeTargets="ResolveAssemblyReferences" Condition="'$(TargetFramework)' == 'net10.0'">
-		<Error Condition="!Exists('$(RimWorld17Dir)Assembly-CSharp.dll')"
-		       Text="RimWorld 1.7 assemblies not found in '$(RimWorld17Dir)'. Pass -p:RimWorld17Dir=&lt;RimWorld 1.7 install folder&gt;, or build only 1.6 with -f net472." />
+		<Warning Condition="'$(UseRimWorld17RefPackage)' == 'true'"
+		         Text="RimWorld 1.7 assemblies not found in '$(RimWorld17Dir)'; compiling against the prerelease Krafs.Rimworld.Ref package instead. Pass -p:RimWorld17Dir=&lt;RimWorld 1.7 install folder&gt; to build against the game's own assemblies." />
 	</Target>
 
 </Project>

@@ -1,0 +1,76 @@
+# Builds the mod and updates its existing Steam Workshop item.
+#
+# Requires two repository secrets:
+#   STEAM_USERNAME   - Steam account that owns the Workshop item
+#   STEAM_CONFIG_VDF - contents of SteamCMD's config/config.vdf after a local
+#                      `steamcmd +login <user>` that cleared Steam Guard
+# See README.md ("Releasing") for how to produce them.
+name: Steam Workshop
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      changeNote:
+        description: Workshop changenote
+        required: false
+        type: string
+
+concurrency:
+  group: steam-workshop
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Builds both target frameworks. 1.6/net472 uses Krafs.Rimworld.Ref plus the
+      # .NET Framework reference assemblies; 1.7/net10.0 falls back to the prerelease
+      # ref package because there is no RimWorld install on the runner.
+      - name: Build
+        run: dotnet build -c Release
+
+      - name: Stage mod folder
+        id: stage
+        run: |
+          set -euo pipefail
+          asm=RimWorld.RememberResourceReadout.dll
+
+          mkdir -p staging/About staging/1.6/Assemblies staging/1.7/Assemblies
+          cp About/About.xml About/Preview.png About/PublishedFileId.txt staging/About/
+          cp 1.6/Assemblies/*.dll staging/1.6/Assemblies/
+          cp 1.7/Assemblies/*.dll staging/1.7/Assemblies/
+          cp README.md staging/
+          [ -f LICENSE ] && cp LICENSE staging/ || true
+
+          # A missing DLL here would publish a broken mod to every subscriber.
+          for v in 1.6 1.7; do
+            test -f "staging/$v/Assemblies/$asm" || {
+              echo "::error::$v/Assemblies/$asm was not built"; exit 1; }
+          done
+
+          echo "Staged contents:"
+          find staging -type f | sort
+
+          id="$(tr -d '[:space:]' < About/PublishedFileId.txt)"
+          case "$id" in
+            ''|*[!0-9]*) echo "::error::About/PublishedFileId.txt is not a numeric id"; exit 1 ;;
+          esac
+          echo "publishedFileId=$id" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to Steam Workshop
+        uses: m00nl1ght-dev/steam-workshop-deploy@v4
+        with:
+          username: ${{ secrets.STEAM_USERNAME }}
+          configVdf: ${{ secrets.STEAM_CONFIG_VDF }}
+          appId: '294100'
+          publishedFileId: ${{ steps.stage.outputs.publishedFileId }}
+          path: staging
+          changeNote: ${{ inputs.changeNote || github.event.head_commit.message }}

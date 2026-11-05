@@ -18,10 +18,12 @@ dotnet build
 
 The project multi-targets one framework per RimWorld version, and each build drops its DLL/PDB into the version folder RimWorld's mod loader picks automatically:
 
-- `net472` → RimWorld 1.6 (Unity/Mono) → `1.6/Assemblies/`. References come from NuGet (`Krafs.Rimworld.Ref`, pinned).
-- `net10.0` → RimWorld 1.7 (custom "Waylith" CoreCLR, .NET 10) → `1.7/Assemblies/`. No 1.7 `Krafs.Rimworld.Ref` exists yet, so this references `Assembly-CSharp.dll` and `UnityStubs.dll` straight from the game install (defaults to two folders up from the repo; override with `-p:RimWorld17Dir=...`).
+- `net472` → RimWorld 1.6 (Unity/Mono) → `1.6/Assemblies/`. References come from NuGet (`Krafs.Rimworld.Ref`, pinned), plus `Microsoft.NETFramework.ReferenceAssemblies` so this target also compiles on Linux CI runners, where there is no .NET Framework targeting pack.
+- `net10.0` → RimWorld 1.7 (custom "Waylith" CoreCLR, .NET 10) → `1.7/Assemblies/`. Prefers `Assembly-CSharp.dll` and `UnityStubs.dll` straight from the game install (defaults to two folders up from the repo; override with `-p:RimWorld17Dir=...`). When those files aren't on disk — CI, or a machine without 1.7 installed — the `UseRimWorld17RefPackage` property flips on and the build falls back to a pinned prerelease `Krafs.Rimworld.Ref` (the only 1.7 releases of that package are prereleases; it ships `ref/net10.0/` copies of both assemblies). The `CheckRimWorld17Dir` target then emits a warning rather than an error, so the build still succeeds.
 
 Build a single version with `dotnet build -f net472` or `-f net10.0`. Both share `Lib.Harmony.Ref` 2.4.2. There is no separate install/copy step — building in place is the deployment. There is no test suite — verification is done by loading the mod in RimWorld itself.
+
+Releases are published by `.github/workflows/steam-workshop.yml`, which builds both targets on `ubuntu-latest`, stages a clean mod folder and updates the Workshop item named in `About/PublishedFileId.txt`. Because the compiled `*/Assemblies` folders are gitignored, CI builds them itself — so a change that breaks the NuGet fallback above breaks publishing, even if it builds fine locally.
 
 ## Architecture
 
